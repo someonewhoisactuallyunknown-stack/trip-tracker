@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../services/code_service.dart';
-import 'generate_codes_screen.dart';
+import '../services/supabase_service.dart';
 import 'developer_map_screen.dart';
 
 class DeveloperDashboard extends StatefulWidget {
@@ -13,187 +13,389 @@ class DeveloperDashboard extends StatefulWidget {
 }
 
 class _DeveloperDashboardState extends State<DeveloperDashboard> {
-  int _selectedTab = 0;
-
-  Future<void> _generateTeacher(BuildContext context) async {
-    final service = Provider.of<CodeService>(context, listen: false);
-    final code = service.generateTeacherCode(group: 'Group ${DateTime.now().millisecondsSinceEpoch}');
-    setState(() {});
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Teacher code: $code')));
-  }
-
-  Future<void> _generateStudents(BuildContext context) async {
-    final service = Provider.of<CodeService>(context, listen: false);
-    final groupCtrl = TextEditingController(text: 'TripGroupA');
-    final countCtrl = TextEditingController(text: '5');
-
-    final res = await showDialog<List<String>>(context: context, builder: (ctx) {
-      return AlertDialog(
-        title: const Text('Generate Student Codes'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: groupCtrl, decoration: const InputDecoration(labelText: 'Group name')),
-            const SizedBox(height: 8),
-            TextField(controller: countCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Count')),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              final cnt = int.tryParse(countCtrl.text) ?? 1;
-              final group = groupCtrl.text.trim().isEmpty ? 'default' : groupCtrl.text.trim();
-              final list = service.generateStudentCodes(cnt, group: group);
-              Navigator.pop(ctx, list);
-            },
-            child: const Text('Generate'),
-          )
-        ],
-      );
-    });
-
-    if (res != null && res.isNotEmpty) {
-      setState(() {});
-      await showDialog(context: context, builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Generated Student Codes'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView(
-              shrinkWrap: true,
-              children: res.map((c) => ListTile(title: Text(c), trailing: IconButton(icon: const Icon(Icons.copy), onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Copied $c')));
-              }))).toList(),
-            ),
-          ),
-          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
-        );
-      });
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
-    final primary = const Color(0xFF0459ae);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.grey[900];
-
-    final service = Provider.of<CodeService>(context);
-
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: isDark ? Colors.black : Colors.white,
-        elevation: 1,
-        title: Text('Developer Dashboard', style: GoogleFonts.workSans(color: textColor, fontWeight: FontWeight.w700)),
+        title: Text(
+          'Developer Dashboard',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+        ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings, color: Colors.grey),
-            onPressed: () {},
-          )
-        ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                const SizedBox(height: 8),
-                _ActionButton(
-                  emoji: '🎓',
-                  label: 'Generate Codes for Students',
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const GenerateCodesScreen())),
-                  primary: primary,
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'IRSHAD HIGH SCHOOL',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF0057B7),
                 ),
-                const SizedBox(height: 12),
-                _ActionButton(
-                  emoji: '👩‍🏫',
-                  label: 'Generate Codes for Teachers',
-                  onTap: () => _generateTeacher(context),
-                  primary: primary,
+              ),
+              Text(
+                'Trip Tracker Management',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.grey[600],
                 ),
-                const SizedBox(height: 12),
-                _ActionButton(
-                  emoji: '🗺️',
-                  label: 'See Location of Everyone',
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DeveloperMapScreen())),
-                  primary: primary,
-                ),
-                const SizedBox(height: 24),
-                const Divider(),
-                const SizedBox(height: 12),
-                Align(alignment: Alignment.centerLeft, child: Text('Existing Teachers', style: GoogleFonts.workSans(fontWeight: FontWeight.w700))),
-                const SizedBox(height: 8),
-                ...service.teachers.entries.map((e) => ListTile(
-                      title: Text(e.value['name']),
-                      subtitle: Text('Code: ${e.key}  Group: ${e.value['group']}'),
-                      trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () {
-                        service.deleteTeacherCode(e.key);
-                        setState(() {});
-                      }),
-                    )),
-                const SizedBox(height: 8),
-                Align(alignment: Alignment.centerLeft, child: Text('Existing Students', style: GoogleFonts.workSans(fontWeight: FontWeight.w700))),
-                const SizedBox(height: 8),
-                ...service.students.entries.map((e) => ListTile(
-                      title: Text(e.value['name']),
-                      subtitle: Text('Code: ${e.key}  Group: ${e.value['group']}'),
-                      trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () {
-                        service.deleteStudentCode(e.key);
-                        setState(() {});
-                      }),
-                    )),
-              ],
-            ),
+              ),
+              const SizedBox(height: 40),
+              _buildActionButton(
+                context,
+                icon: Icons.school,
+                title: 'Generate Codes for Students',
+                subtitle: 'Create access codes for students',
+                color: const Color(0xFF4CAF50),
+                onTap: () => _showGenerateStudentsDialog(context),
+              ),
+              const SizedBox(height: 20),
+              _buildActionButton(
+                context,
+                icon: Icons.person,
+                title: 'Generate Codes for Teachers',
+                subtitle: 'Create access codes for teachers',
+                color: const Color(0xFF2196F3),
+                onTap: () => _showGenerateTeacherDialog(context),
+              ),
+              const SizedBox(height: 20),
+              _buildActionButton(
+                context,
+                icon: Icons.map,
+                title: 'See Location of Everyone',
+                subtitle: 'View all users on map',
+                color: const Color(0xFFFF9800),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const DeveloperMapScreen(),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedTab,
-        onTap: (i) => setState(() => _selectedTab = i),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Dashboard'),
-          BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Map'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
+    );
+  }
+
+  Widget _buildActionButton(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey[200]!),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              spreadRadius: 1,
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, size: 32, color: color),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[800],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios, size: 18, color: Colors.grey[400]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showGenerateStudentsDialog(BuildContext context) {
+    final countController = TextEditingController();
+    String? selectedGroupId;
+    String? selectedGroupName;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(
+            'Generate Student Codes',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FutureBuilder<List<Map<String, dynamic>>>(
+                future: Provider.of<SupabaseService>(context, listen: false)
+                    .client
+                    .from('groups')
+                    .select('id, name, teacher:teacher_id(name)')
+                    .order('created_at', ascending: false),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return const CircularProgressIndicator();
+                  }
+
+                  final groups = List<Map<String, dynamic>>.from(snapshot.data!);
+
+                  return DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(
+                      labelText: 'Select Group',
+                      border: OutlineInputBorder(),
+                    ),
+                    value: selectedGroupId,
+                    items: groups.map((group) {
+                      return DropdownMenuItem(
+                        value: group['id'],
+                        child: Text('${group['name']}'),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setDialogState(() {
+                        selectedGroupId = value;
+                        selectedGroupName = groups
+                            .firstWhere((g) => g['id'] == value)['name'];
+                      });
+                    },
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: countController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Number of Codes',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (selectedGroupId == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please select a group')),
+                  );
+                  return;
+                }
+
+                final count = int.tryParse(countController.text) ?? 0;
+                if (count <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Please enter a valid number')),
+                  );
+                  return;
+                }
+
+                Navigator.pop(context);
+
+                final supabase =
+                    Provider.of<SupabaseService>(context, listen: false);
+                final students = await supabase.generateStudentCodes(
+                  count,
+                  selectedGroupId!,
+                );
+
+                _showCodesDialog(
+                  context,
+                  'Student Codes Generated',
+                  students,
+                  selectedGroupName ?? 'Group',
+                );
+              },
+              child: const Text('Generate'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showGenerateTeacherDialog(BuildContext context) {
+    final groupNameController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          'Generate Teacher Code',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+        ),
+        content: TextField(
+          controller: groupNameController,
+          decoration: const InputDecoration(
+            labelText: 'Group Name',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final groupName = groupNameController.text.trim();
+              if (groupName.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter a group name')),
+                );
+                return;
+              }
+
+              Navigator.pop(context);
+
+              final supabase =
+                  Provider.of<SupabaseService>(context, listen: false);
+              final teacher = await supabase.generateTeacherCode(groupName);
+
+              _showCodesDialog(
+                context,
+                'Teacher Code Generated',
+                [teacher],
+                groupName,
+              );
+            },
+            child: const Text('Generate'),
+          ),
         ],
       ),
     );
   }
-}
 
-class _ActionButton extends StatelessWidget {
-  final String emoji;
-  final String label;
-  final VoidCallback onTap;
-  final Color primary;
-
-  const _ActionButton({required this.emoji, required this.label, required this.onTap, required this.primary});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: primary.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+  void _showCodesDialog(
+    BuildContext context,
+    String title,
+    List<Map<String, dynamic>> users,
+    String groupName,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          title,
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(emoji, style: const TextStyle(fontSize: 28)),
-              const SizedBox(width: 12),
-              Expanded(child: Text(label, style: GoogleFonts.workSans(fontSize: 16, fontWeight: FontWeight.w600))),
+              Text(
+                'Group: $groupName',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[700],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: users.length,
+                  itemBuilder: (context, index) {
+                    final user = users[index];
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: const Color(0xFF0057B7),
+                          child: Text(
+                            '${index + 1}',
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ),
+                        title: Text(
+                          user['access_code'],
+                          style: GoogleFonts.mono(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 18,
+                          ),
+                        ),
+                        subtitle: Text(user['name']),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.copy),
+                          onPressed: () {
+                            Clipboard.setData(
+                              ClipboardData(text: user['access_code']),
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Code copied to clipboard'),
+                                duration: Duration(seconds: 1),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
             ],
           ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
   }

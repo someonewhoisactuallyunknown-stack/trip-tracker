@@ -17,26 +17,44 @@ class _LoginScreenState extends State<LoginScreen> {
   final _controller = TextEditingController();
   String _error = '';
 
-  void _login() {
+  Future<void> _login() async {
     final code = _controller.text.trim();
-    final service = Provider.of<CodeService>(context, listen: false);
-    if (service.isDeveloperCode(code)) {
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DeveloperDashboard()));
+    if (code.isEmpty) {
+      setState(() {
+        _error = 'Please enter an access code';
+      });
       return;
     }
-    if (service.isTeacherCode(code)) {
-      final info = service.getTeacher(code)!;
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => TeacherDashboard(code: code, info: info)));
-      return;
-    }
-    if (service.isStudentCode(code)) {
-      final info = service.getStudent(code)!;
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => StudentDashboard(code: code, info: info)));
-      return;
-    }
+
     setState(() {
-      _error = 'Invalid code. Ask the developer/teacher for a valid code.';
+      _error = '';
     });
+
+    final service = Provider.of<CodeService>(context, listen: false);
+
+    if (service.isDeveloperCode(code)) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const DeveloperDashboard()),
+      );
+      return;
+    }
+
+    final user = await service.verifyCode(code);
+    if (user != null) {
+      if (user['role'] == 'teacher') {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => TeacherDashboard(userData: user)),
+        );
+      } else if (user['role'] == 'student') {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => StudentDashboard(userData: user)),
+        );
+      }
+    } else {
+      setState(() {
+        _error = 'Invalid code. Ask the developer/teacher for a valid code.';
+      });
+    }
   }
 
   @override

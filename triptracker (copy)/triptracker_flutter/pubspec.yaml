@@ -10,11 +10,16 @@ dependencies:
     sdk: flutter
   provider: ^6.0.0
   google_fonts: ^4.0.3
-  # Stubs for later
+  supabase_flutter: ^2.0.0
   geolocator: ^9.0.2
   battery_plus: ^4.0.0
   flutter_map: ^3.0.0
+  latlong2: ^0.9.0
   flutter_local_notifications: ^13.0.0
+  flutter_compass: ^0.8.0
+  intl: ^0.18.0
+  permission_handler: ^11.0.0
+  flutter_dotenv: ^5.0.2
 
 dev_dependencies:
   flutter_test:
@@ -25,3 +30,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/
+    - .env
